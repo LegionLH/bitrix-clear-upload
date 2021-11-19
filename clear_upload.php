@@ -62,44 +62,49 @@ if (file_exists($prolog)) include($prolog); else die("Указанный кат�
 $arFilesCache = array();
 $result = $DB->Query('SELECT FILE_NAME, SUBDIR FROM b_file WHERE MODULE_ID = "iblock"');
 while ($row = $result->Fetch()) {
-    $arFilesCache[ $row['FILE_NAME'] ] = $row['SUBDIR'];
+    $arFilesCache[] = $row;
 }
 
 $rootDirPath = $_SERVER['DOCUMENT_ROOT'] . "/upload/iblock";
-$hRootDir = opendir($rootDirPath);
-$count = 0;
-while (false !== ($subDirName = readdir($hRootDir))) {
-    if ($subDirName == '.' || $subDirName == '..') 
-        continue;
-    $subDirPath = "$rootDirPath/$subDirName";
-    $hSubDir = opendir($subDirPath);    
-    while (false !== ($fileName = readdir($hSubDir))) {
-        if ($fileName == '.' || $fileName == '..') 
-            continue;
-        if (array_key_exists($fileName, $arFilesCache)) {
-            continue;
-        }
-        $fullPath = "$subDirPath/$fileName";
-        if ($command=='delete-files') {
-            if (unlink($fullPath)) {
-                echo "Removed: " . $fullPath . PHP_EOL;
-            }
-        } elseif ($command=='move-files' && !empty($commandvalue)) {
-			mkdir("$commandvalue/$subDirName",0775, true);
-			if (rename($fullPath, "$commandvalue/$subDirName/$fileName")) {
-				echo "Move: " . $fullPath . PHP_EOL;
-			}
-		}
-        else {
-            echo $fullPath . PHP_EOL;
-        }
-    }
-    closedir($hSubDir);
-    if (!empty($command)) {
-		//delete empty directory
-		@rmdir($subDirPath);
-    }
-}
-closedir($hRootDir);
+get_dir_contents($rootDirPath);
 
+	//-------------------------------------
+	
+	function get_dir_contents( $dir ) {
+		global $arFilesCache, $command, $commandvalue;
+		if ( file_exists($dir) ) {
+			if ( is_dir($dir) )	{
+				$handle = opendir($dir);
+				while (($filename = readdir($handle)) !== false) {
+					if (($filename != ".") && ($filename != "..")) {
+						if (is_dir($dir."/".$filename)) {
+							get_dir_contents($dir."/".$filename);
+						} else {
+				               	$subDirName = str_replace($_SERVER['DOCUMENT_ROOT']."/upload/","",$dir);
+						        if (in_array(array('FILE_NAME'=>$filename, 'SUBDIR'=>$subDirName), $arFilesCache)) {
+						            continue;
+						        }
+						        if ($command=='delete-files') {
+						            if (unlink($dir."/".$filename)) {
+						                echo "Removed: " . $dir."/".$filename . PHP_EOL;
+						            }
+						        } elseif ($command=='move-files' && !empty($commandvalue)) {
+									mkdir("$commandvalue/$subDirName",0775, true);
+									if (rename($dir."/".$filename, "$commandvalue/$subDirName/$filename")) {
+										echo "Move: " . $dir."/".$filename . PHP_EOL;
+									}
+								} else {
+						            echo $dir."/".$filename . PHP_EOL;
+						        }
+						}
+					}
+				}
+				closedir($handle);
+		        if (!empty($command)) {
+					//delete empty directory
+					@rmdir($handle);
+				}
+			 }
+		}
+	}
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/epilog_after.php");
